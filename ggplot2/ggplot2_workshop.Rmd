@@ -5,73 +5,89 @@ date: "6/1/2021"
 output: html_document
 ---
 
-```{r setup}
+This tutorial is an introduction to make figures programmatically in R with ggplot2 and uses data from https://github.com/maureencarey/metabolomics
+
+# Prep computational environment
+
+```{r setup, include = F}
 knitr::opts_chunk$set(echo = TRUE)
 
-path = "/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2"
+path = "/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/"
 
 knitr::opts_knit$set(root.dir = path)
 
 ```
 
-# Get data
+```{r, eval = F}
+knitr::opts_chunk$set(echo = TRUE)
 
-Data from: https://github.com/maureencarey/metabolomics
+path = "/path/to/data/"
 
-# Prep computational environment
+knitr::opts_knit$set(root.dir = path)
+
+```
+
+Load packages.
 
 ```{r,warning=TRUE, message=FALSE}
 
 library(tidyverse) #dplyr, tidyr
-load(.RData)
+load("for_ggplot2_tutorial.RData")
 
 ```
 
-I always like to take a look at the data before I get started. This will clue you in to any potential challenges that may arise or any issues you need to correct, such as:
+Let's say you want to make a publication-quality figure like this:
 
-1. Do you have sufficient N to detect a difference in sample groups? 
-2. Is there an outlier that you want to follow up on?
-3. Are the data formatted as you expected?
-4. Are the data normalized as you expected?
-
-## Basic plotting
-
-For example, let's say you knew Alignment ID 969 was interesting based on previous experiments. What metabolite does Alignment ID 969 represent?
-
-```{r}
-
-interesting_met = met_info[met_info$COMP_ID == 52603,] %>% pull(BIOCHEMICAL)
-
-interesting_met
-
-```
-
-Now let's see the relative abundance of `r interesting_met` in each group.
-
-```{r}
-
+```{r, include = F}
 
 # merge metabolite abundance with group names
-interesting_met_abund_w_grps = merge(t(norm_data), sample_info) %>%
-  pivot_longer(cols = -c(samples,genetic_background,replicate,drug_treatment),
+interesting_met_abund_w_grps = merge(t(rel_data), sample_info,
+                                     by.x = "row.names", by.y = "samples") %>%
+  column_to_rownames("Row.names") %>% 
+  pivot_longer(cols = -c(genetic_background,replicate,drug_treatment),
                names_to = "metabolite", values_to = "abundance")
-# plot
-ggplot(data = interesting_met_abund_w_grps, aes(x = metabolite, y = abundance, color = drug_treatment)) + # set variables
+
+# # compute limits
+# ylim1 = interesting_met_abund_w_grps %>% 
+#   group_by(metabolite, genetic_background, drug_treatment) %>%
+#   summarise(boxplot= list(setNames(boxplot.stats(abundance)$stats,
+#                                    c('lower_whisker','lower_hinge','median','upper_hinge','upper_whisker'))),
+#             .groups = "keep") %>%
+#   ungroup() %>% unnest_wider(boxplot)
+# ylim1 = max(ylim1$upper_whisker) + 15
+# limits = c(1, log10(ylim1))
+# # plot
+# p = ggplot(data = interesting_met_abund_w_grps, aes(x = metabolite, y = abundance, color = drug_treatment)) + # set variables
+#   geom_boxplot(outlier.shape = NA) + # make it a boxplot, hide outliers
+#   facet_wrap(~genetic_background) + # split
+#   theme_minimal() +
+#   theme(axis.text = element_blank(),
+#         axis.ticks.x = element_blank()) +
+#   ylim(c(0, max(ylim1$upper_whisker)+1)) +
+#   coord_flip()
+# p
+
+pick_these = met_info[met_info$SUPER_PATHWAY == 'Carbohydrate' | met_info$SUPER_PATHWAY == 'Energy' | met_info$SUPER_PATHWAY == 'Cofactors and Vitamins',] %>% pull(COMP_ID)
+p = ggplot(data = interesting_met_abund_w_grps %>% 
+             filter(metabolite %in% pick_these), 
+           aes(x = metabolite, y = abundance, color = drug_treatment)) + # set variables
   geom_boxplot(outlier.shape = NA) + # make it a boxplot, hide outliers
   facet_wrap(~genetic_background) + # split
   theme_minimal() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+  scale_color_manual(values = c("black","red")) +
+  theme(axis.ticks.x = element_blank()) +
+  scale_y_log10() + ylab('abundance (log10), drug-treated in red') +
+  coord_flip() +
+  guides(color = F)
+p
 
-  
 ```
 
-
-------
-
-As an aside, I want to talk a bit about plotting in R. The biggest strength of making figures programmatically (as opposed to Excel or Prism, or other approaches that don't use code) is that your figures are 100% reproducible and customizable and all errors are traceable. Making figures in Excel or Prism may be easier to start, but there is no documentation (i.e. code) of what you did. 
+The biggest strength of making figures programmatically (as opposed to Excel or Prism, or other approaches that don't use code) is that your figures are 100% reproducible and customizable and all errors are traceable. Making figures in Excel or Prism may be easier to start, but there is no documentation (i.e. code) of what you did.
 
 `ggplot2`, the package used here, is just one way to do it and my personal favorite. Strengths of `ggplot2` specifically are that its relatively easy to make publication quality figures and many application-focused packages provide even-easier-to-use wrappers for ggplot plotting (think: PCA from Tuesday's workshop with `phyloseq`). My favorite feature of `ggplot2` is how you can layer on new information or plotting approaches. For example, in the plot above, we first specified what data would be used and the x- and y-axes here:
+
+
 
 ```{r}
 

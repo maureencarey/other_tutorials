@@ -5,12 +5,31 @@ date: "6/1/2021"
 output: html_document
 ---
 
-```{r setup}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-path = "/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2"
+path = "/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/"
 
 knitr::opts_knit$set(root.dir = path)
+
+```
+
+# Prep computational environment
+
+```{r, eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+path = "/path/to/data"
+
+knitr::opts_knit$set(root.dir = path)
+
+```
+
+Load packages.
+
+```{r,warning=TRUE, message=FALSE}
+
+library(tidyverse) #dplyr, tidyr, ggplot2
 
 ```
 
@@ -18,18 +37,27 @@ knitr::opts_knit$set(root.dir = path)
 
 Data from: https://github.com/maureencarey/metabolomics
 
-# Prep computational environment
+## metadata
 
-```{r,warning=TRUE, message=FALSE}
+```{r}
 
-library(tidyverse) #dplyr, tidyr
+metadata = read.table(paste0(path,"sample_data_2017.csv"),sep = ',', header = F)
 
-sample_data = t(read.table("/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/sample_data_2017.csv",sep = ',', header = F))
+# flip orientation of spreadsheet
+metadata = as.data.frame(t(metadata))
+
 # make the first row column names and then get rid of that row
-colnames(sample_data) = sample_data[1,] 
-sample_data = sample_data[-1,]
+colnames(metadata) = metadata[1,] 
+metadata = metadata[-1,]
 
-df = read.table("/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/met_methods_raw_data.txt",sep = '\t', header = T)
+```
+
+## metabolomics data
+
+```{r}
+
+df = read.table(paste0(path, "/met_methods_raw_data.txt"),sep = '\t', header = T)
+
 # last row is empty so get rid of it
 df = df[-nrow(df),]
 
@@ -47,11 +75,17 @@ samples = colnames(met_abundances)[-1]
 sample_info = as.data.frame(samples) %>% separate(samples, c("genetic_background", "replicate","drug_treatment"), remove = F)
 rownames(sample_info) = sample_info$samples
 
+rm(df, path, samples)
+
 ```
 
-# Preprocessing steps {Imput missing values, Normalize to cell count, Normalize to relative abundance}
+# Preprocessing steps
 
-## Imput missing values
+1. Impute missing values
+2. Normalize to cell count
+3. Calculate relative abundance
+
+## Impute missing values
 
 ```{r}
 
@@ -66,21 +100,55 @@ for (i in 1:nrow(met_abundances_no_missing_val)) {
     if (is.na(met_abundances_no_missing_val[i,j])) {
       met_abundances_no_missing_val[i,j] = min2 }  } }
 
+rm(met_abundances, i, j, min1, min2)
+
 ```
 
 ## Normalize to cell count
 
 ```{r}
+
+# flip metabolite abundance dataframe to make merging easy
+flipped = as.data.frame(t(met_abundances_no_missing_val))
+
+# merge with only some columns from metadata
+for_normalization = merge(flipped, metadata %>% select(CLIENT_IDENTIFIER, TOTAL_PARASITES), 
+                          by.x = "row.names", by.y = "CLIENT_IDENTIFIER", 
+                          all.x = T, all.y = F)
+# reset rownames
+rownames(for_normalization) = for_normalization$Row.names
+for_normalization$Row.names = NULL
+# reset data type
+for_normalization$TOTAL_PARASITES = as.numeric(as.character(for_normalization$TOTAL_PARASITES))
+
+# normalize to cell count (parasite number) by dividing each measurement by the cell count for that sample
+norm_data = for_normalization %>% mutate_at(vars(-TOTAL_PARASITES), funs(. / TOTAL_PARASITES)) %>% select(-TOTAL_PARASITES)
+
+rm(met_abundances_no_missing_val, flipped, for_normalization)
+
 ```
 
-## Normalize to relative abundance
+## Calculate relative abundance
 
 ```{r}
 
+# flip dataset
+norm_data = as.data.frame(t(norm_data))
+
 # calculate the median value for each metabolite
-met_abundances$row_median = apply(met_abundances, 1, median)
+norm_data$row_median = apply(norm_data, 1, median)
 
 # divide each measurement by the median for that metabolite
-norm_data = met_abundances %>% mutate_at(vars(-row_median), funs(. / row_median)) %>% select(-row_median)
+rel_data = norm_data %>% mutate_at(vars(-row_median), funs(. / row_median)) %>% select(-row_median)
+
+rm(norm_data)
+
+```
+
+# save
+
+```{r}
+
+save.image(file = "for_ggplot2_tutorial.RData")
 
 ```
