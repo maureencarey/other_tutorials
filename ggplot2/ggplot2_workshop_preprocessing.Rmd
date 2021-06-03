@@ -1,0 +1,86 @@
+---
+title: "TUMI Microbiome/Data Science Weekly Meeting - Introduction to ggplot2"
+author: "Maureen Carey"
+date: "6/1/2021"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+path = "/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2"
+
+knitr::opts_knit$set(root.dir = path)
+
+```
+
+# Get data
+
+Data from: https://github.com/maureencarey/metabolomics
+
+# Prep computational environment
+
+```{r,warning=TRUE, message=FALSE}
+
+library(tidyverse) #dplyr, tidyr
+
+sample_data = t(read.table("/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/sample_data_2017.csv",sep = ',', header = F))
+# make the first row column names and then get rid of that row
+colnames(sample_data) = sample_data[1,] 
+sample_data = sample_data[-1,]
+
+df = read.table("/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/met_methods_raw_data.txt",sep = '\t', header = T)
+# last row is empty so get rid of it
+df = df[-nrow(df),]
+
+# pull out info about metabolites - each row is a metabolite and column is a different identifier or info about that metabolite
+met_info = df[,1:14]
+
+# pull out abundances - each column is a sample and row is a metabolite
+met_abundances = df[,c(5,30:ncol(df))]
+# move metabolite IDs to rownames rather than a column - this will make plotting easier
+rownames(met_abundances) = met_abundances$COMP_ID
+met_abundances$COMP_ID = NULL
+
+# make a dataframe from the sample names describing sample groups
+samples = colnames(met_abundances)[-1]
+sample_info = as.data.frame(samples) %>% separate(samples, c("genetic_background", "replicate","drug_treatment"), remove = F)
+rownames(sample_info) = sample_info$samples
+
+```
+
+# Preprocessing steps {Imput missing values, Normalize to cell count, Normalize to relative abundance}
+
+## Imput missing values
+
+```{r}
+
+# remove metabolites that aren't detected in any sample
+met_abundances_no_missing_val = met_abundances[rowSums(is.na(met_abundances)) != ncol(met_abundances), ]
+
+# replace missing values with half the lowest detected value
+for (i in 1:nrow(met_abundances_no_missing_val)) {
+  min1 = min(met_abundances_no_missing_val[i,],na.rm= T)
+  min2 = min1/2 
+  for (j in 1:ncol(met_abundances_no_missing_val)) {
+    if (is.na(met_abundances_no_missing_val[i,j])) {
+      met_abundances_no_missing_val[i,j] = min2 }  } }
+
+```
+
+## Normalize to cell count
+
+```{r}
+```
+
+## Normalize to relative abundance
+
+```{r}
+
+# calculate the median value for each metabolite
+met_abundances$row_median = apply(met_abundances, 1, median)
+
+# divide each measurement by the median for that metabolite
+norm_data = met_abundances %>% mutate_at(vars(-row_median), funs(. / row_median)) %>% select(-row_median)
+
+```
