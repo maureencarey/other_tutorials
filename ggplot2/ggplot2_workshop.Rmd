@@ -5,9 +5,11 @@ date: "6/1/2021"
 output: html_document
 ---
 
-This tutorial is an introduction to make figures programmatically in R with ggplot2 and uses data from https://github.com/maureencarey/metabolomics
+This tutorial is an introduction to make figures programmatically in R with ggplot2 and uses data from Carey et al.^[https://github.com/maureencarey/metabolomics]
 
 # Prep computational environment
+
+Set path. This will change on your computer - indicate the folder where you saved the data.
 
 ```{r setup, include = F}
 knitr::opts_chunk$set(echo = TRUE)
@@ -38,61 +40,38 @@ load("for_ggplot2_tutorial.RData")
 
 Let's say you want to make a publication-quality figure like this:
 
-```{r, include = F}
+```{r, echo = F}
 
-# merge metabolite abundance with group names
-interesting_met_abund_w_grps = merge(t(rel_data), sample_info,
-                                     by.x = "row.names", by.y = "samples") %>%
-  column_to_rownames("Row.names") %>% 
-  pivot_longer(cols = -c(genetic_background,replicate,drug_treatment),
-               names_to = "metabolite", values_to = "abundance")
-
-# # compute limits
-# ylim1 = interesting_met_abund_w_grps %>% 
-#   group_by(metabolite, genetic_background, drug_treatment) %>%
-#   summarise(boxplot= list(setNames(boxplot.stats(abundance)$stats,
-#                                    c('lower_whisker','lower_hinge','median','upper_hinge','upper_whisker'))),
-#             .groups = "keep") %>%
-#   ungroup() %>% unnest_wider(boxplot)
-# ylim1 = max(ylim1$upper_whisker) + 15
-# limits = c(1, log10(ylim1))
-# # plot
-# p = ggplot(data = interesting_met_abund_w_grps, aes(x = metabolite, y = abundance, color = drug_treatment)) + # set variables
-#   geom_boxplot(outlier.shape = NA) + # make it a boxplot, hide outliers
-#   facet_wrap(~genetic_background) + # split
-#   theme_minimal() +
-#   theme(axis.text = element_blank(),
-#         axis.ticks.x = element_blank()) +
-#   ylim(c(0, max(ylim1$upper_whisker)+1)) +
-#   coord_flip()
-# p
-
-pick_these = met_info[met_info$SUPER_PATHWAY == 'Carbohydrate' | met_info$SUPER_PATHWAY == 'Energy' | met_info$SUPER_PATHWAY == 'Cofactors and Vitamins',] %>% pull(COMP_ID)
-p = ggplot(data = interesting_met_abund_w_grps %>% 
-             filter(metabolite %in% pick_these), 
-           aes(x = metabolite, y = abundance, color = drug_treatment)) + # set variables
-  geom_boxplot(outlier.shape = NA) + # make it a boxplot, hide outliers
-  facet_wrap(~genetic_background) + # split
+p = ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_wrap(~group_use, scales = "free") +
+  coord_flip() + 
   theme_minimal() +
+  theme(axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        legend.position = "bottom") +
   scale_color_manual(values = c("black","red")) +
-  theme(axis.ticks.x = element_blank()) +
-  scale_y_log10() + ylab('abundance (log10), drug-treated in red') +
-  coord_flip() +
-  guides(color = F)
+  scale_fill_manual(values = c("white","grey")) +
+  scale_y_log10() + 
+  ylab('abundance (log10)') + xlab('metabolites') +
+  labs(fill = "Genetic Background:", color = "Drug Treatment:")
 p
 
 ```
 
+-------
+
 The biggest strength of making figures programmatically (as opposed to Excel or Prism, or other approaches that don't use code) is that your figures are 100% reproducible and customizable and all errors are traceable. Making figures in Excel or Prism may be easier to start, but there is no documentation (i.e. code) of what you did.
 
-`ggplot2`, the package used here, is just one way to do it and my personal favorite. Strengths of `ggplot2` specifically are that its relatively easy to make publication quality figures and many application-focused packages provide even-easier-to-use wrappers for ggplot plotting (think: PCA from Tuesday's workshop with `phyloseq`). My favorite feature of `ggplot2` is how you can layer on new information or plotting approaches. For example, in the plot above, we first specified what data would be used and the x- and y-axes here:
+`ggplot2`, the package used here, is just one way to do it and my personal favorite. Strengths of `ggplot2` specifically are that its relatively easy to make publication quality figures and many application-focused packages provide even-easier-to-use wrappers for ggplot plotting. 
 
-
+My favorite feature of `ggplot2` is how you can layer on new information or plotting approaches. For example, in the plot above, we first specified what data would be used and the x- and y-axes here:
 
 ```{r}
 
-p = ggplot(data = interesting_met_abund_w_grps, aes(x = genetic_background, y = `52603`, color = drug_treatment))
-p
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background))
 
 ```
 
@@ -100,83 +79,244 @@ Next, we told the program what type of plot to make (boxplot) so it plotted the 
 
 ```{r}
 
-p = p + geom_boxplot() 
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot() 
+
+```
+
+We can also hide all outliers on the plot with this:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA)
+
+```
+
+However, we are actually interested in separating each type of metabolite into groups, like this:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_wrap(~group_use, scales = "free") 
+
+```
+
+But these colors are rather uninterpretable, so let's change them:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) 
+
+```
+
+I prefer the plot to be flipped, so we can do that here:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_wrap(~group_use, scales = "free") +
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip()
+
+```
+
+Let's now remove the metabolite identifiers since they are not terribly useful:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) +
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip() + 
+  theme(axis.ticks.x = element_blank(),
+        axis.text.y = element_blank())
+
+```
+
+Next, let's change the scale of the 'abundance' axis to make it clearer:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip() + 
+  theme(axis.ticks.x = element_blank(),
+        axis.text.y = element_blank()) +
+  scale_y_log10()
+
+```
+
+Let's now change the labels for the x- and y-axes:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip() + 
+  theme(axis.ticks.x = element_blank(),
+        axis.text.y = element_blank()) +
+  scale_y_log10() + 
+  ylab('abundance (log10)') + xlab('metabolites')
+
+```
+
+And change the location and capitalization on the legend:
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip() + 
+  theme(axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        legend.position = "bottom") +
+  scale_y_log10() + 
+  ylab('abundance (log10)') + xlab('metabolites') +
+  labs(fill = "Genetic Background:", color = "Drug Treatment:")
+
+```
+
+And lastly, let's get rid of the grey background.
+
+```{r}
+
+ggplot(data = plot_these, 
+           aes(x = metabolite, y = abundance, color = drug_treatment, fill = genetic_background)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~group_use, scales = "free") + 
+  scale_color_manual(values = c("black","red")) +
+  scale_fill_manual(values = c("white","grey")) +
+  coord_flip() +
+  theme_minimal() +
+  theme(axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        legend.position = "bottom") +
+  scale_y_log10() + 
+  ylab('abundance (log10)') + xlab('metabolites') +
+  labs(fill = "Genetic Background:", color = "Drug Treatment:") 
+
+```
+
+(Notice how we generally added each layer to the end of the code except for 'theme_minimal'. That is because 'theme_minimal' will override our custom 'theme' layer where we hid the ticks and text on one axis.)
+
+----------
+
+Ok, let's try one more! Here is the final plot:
+
+```{r, echo = F}
+
+p = ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red") +
+  ylab('metabolite abundance with drug treatment') + 
+  xlab('metabolite abundance withOUT drug treatment') +
+  scale_x_log10() + scale_y_log10() +
+  annotate(geom = "text", label = "genetic background:\ndrug resistant in red\ndrug sensitive in blue", x =.8, y = 4) +
+  annotate(geom = "segment", x = 0.5, xend = 5, y = 0.5, yend = 5,
+           colour = "grey", linetype = "dashed")
 p
 
 ```
 
-Third, we layered on points:
+Layer 1: Data
 
 ```{r}
 
-p = p + geom_point(size = 4) 
-p
+ggplot(new_plot_these)
 
 ```
 
-Fourth, we hide the legend:
+Layer 2: Data & type of plot.
+
+Notice here we put the x and y variables into the type of plot layer; this is because our x and y variables are different for the two sets of points!
 
 ```{r}
 
-p = p + guides(color = F)
-p
+ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red")
 
 ```
 
-Fifth, we added statistics:
+Layer 3: Rename axes. 
 
 ```{r}
 
-p = p + stat_compare_means(comparisons = my_comparisons, size = 3, method = 't.test')
-p
+ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red") +
+  ylab('metabolite abundance with drug treatment') + 
+  xlab('metabolite abundance withOUT drug treatment') 
 
 ```
 
-We could go even further, e.g. changing the color scheme, background, changing the axis labels, and adding a title:
+Layer 4: Scale axes. 
 
 ```{r}
 
-p = p + 
-  scale_color_manual(values = c("grey","blue","pink","green")) +
-  theme_bw() +
-  xlab(NULL) +
-  ylab("abundance") +
-  ggtitle(paste(interesting_met, "abundance with t.test", sep = " "))
-  
-p
+ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red") +
+  ylab('metabolite abundance with drug treatment') + 
+  xlab('metabolite abundance withOUT drug treatment') +
+  scale_x_log10() + scale_y_log10() 
 
 ```
 
-------
-
-Next, let's look at all of the metabolites at once. For example, we'd expect to see a similar range of metabolite abundances in all sample groups. A histogram would be useful for this purpose.
+Layer 5: Add custom legend for colors.
 
 ```{r}
 
-# remove Alignment ID column
-met_abund_temp = met_abund
-met_abund_temp$`Alignment ID` = NULL
-# merge metabolite abundance with group names
-met_abund_w_grps = rbind(grps,met_abund_temp)
-# flip dataframe for easier plotting
-df_to_plot = as.data.frame(t(met_abund_w_grps))
-# add column headers for easier data access
-colnames(df_to_plot)[1] = 'group'
-# reorganize data
-df_to_plot = tidyr::pivot_longer(df_to_plot, !group, names_to = "metabolite", values_to = "abundance")
-# make sure the abundances are read as numbers not as text
-df_to_plot$abundance = as.numeric(df_to_plot$abundance)
-
-ggplot(data = df_to_plot, aes(x = abundance, fill = group)) +
-  geom_histogram(bins = 100) + scale_x_sqrt() +
-  facet_wrap(~group) + guides(fill = F)
+ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red") +
+  ylab('metabolite abundance with drug treatment') + 
+  xlab('metabolite abundance withOUT drug treatment') +
+  scale_x_log10() + scale_y_log10() +
+  annotate(geom = "text", label = "genetic background:\ndrug resistant in red\ndrug sensitive in blue", x =.8, y = 4) 
 
 ```
 
-------
+Layer 6: Add dotted line to help with interpretation.
 
-PS - Have questions about that 'pivot_longer' step? It's extremely useful but a little challenging to understand at first. Check this out:^[from https://fromthebottomoftheheap.net/2019/10/25/pivoting-tidily/]
+```{r}
 
-![this is the concept behind pivoting - a way to restructure data for (sometimes) easier plotting](/Users/mac9jc/Documents/work/TUMI/microbiome_course_2021/metabolomics/tidyr-longer-wider.gif)
+ggplot(new_plot_these) + 
+  geom_point(aes(x = minus_PUR, y = plus_PUR), color = "blue") +
+  geom_point(aes(x = minus_BAT, y = plus_BAT), color = "red") +
+  ylab('metabolite abundance with drug treatment') + 
+  xlab('metabolite abundance withOUT drug treatment') +
+  scale_x_log10() + scale_y_log10() +
+  annotate(geom = "text", label = "genetic background:\ndrug resistant in red\ndrug sensitive in blue", x =.8, y = 4) +
+  annotate(geom = "segment", x = 0.5, xend = 5, y = 0.5, yend = 5,
+           colour = "grey", linetype = "dashed")
 
-------
+```

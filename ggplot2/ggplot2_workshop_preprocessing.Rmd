@@ -145,10 +145,69 @@ rm(norm_data)
 
 ```
 
+## Get subsets of data used in tutorial for figure 1
+
+```{r}
+
+
+# merge metabolite abundance with group names
+interesting_met_abund_w_grps = merge(t(rel_data), sample_info,
+                                     by.x = "row.names", by.y = "samples") %>%
+  pivot_longer(cols = -c(genetic_background,replicate,drug_treatment,Row.names),
+               names_to = "metabolite", values_to = "abundance") %>%
+  rename("sample" = Row.names)
+
+# select metabolites of interest
+pick_these = met_info[met_info$SUPER_PATHWAY != 'Lipid' & met_info$SUPER_PATHWAY != 'Peptide',] %>% pull(COMP_ID)
+
+# subset data
+subset_mets = interesting_met_abund_w_grps %>% 
+  filter(metabolite %in% pick_these) 
+
+# rename metabolites
+plot_these = merge(subset_mets, met_info, by.x = "metabolite", by.y = "COMP_ID", all.x = T) %>%
+  mutate(group_use = ifelse(SUPER_PATHWAY == "Carbohydrate","Energy/Carbohydrates",
+                            ifelse(SUPER_PATHWAY == "Energy", "Energy/Carbohydrates",
+                                   ifelse(SUPER_PATHWAY == "Xenobiotics", "Cofactors and Vitamins", 
+                                          SUPER_PATHWAY))))
+
+```
+
+------
+
+PS - Have questions about that 'pivot_longer' step? It's extremely useful but a little challenging to understand at first. Check this out:^[from https://fromthebottomoftheheap.net/2019/10/25/pivoting-tidily/]
+
+![this is the concept behind pivoting - a way to restructure data for (sometimes) easier plotting](/Users/mac9jc/Documents/Documents - somH12CXJ8GJV40/work/projects/other_tutorials/ggplot2/tidyr-longer-wider.gif)
+
+------
+
+## Get subsets of data used in tutorial for figure 2
+
+```{r}
+
+
+# rename metabolites
+plot_these_temp = merge(interesting_met_abund_w_grps, met_info, by.x = "metabolite", by.y = "COMP_ID", all.x = T) %>%
+  mutate(group_use = ifelse(SUPER_PATHWAY == "Carbohydrate","Energy/Carbohydrates",
+                            ifelse(SUPER_PATHWAY == "Energy", "Energy/Carbohydrates",
+                                   ifelse(SUPER_PATHWAY == "Xenobiotics", "Cofactors and Vitamins", 
+                                          SUPER_PATHWAY))))
+
+average_per_group = plot_these_temp %>% 
+  group_by(drug_treatment,genetic_background, metabolite) %>%
+  summarize(mean_abundance = mean(abundance), .groups = "keep")
+
+new_plot_these = average_per_group %>% 
+  select(metabolite, mean_abundance, drug_treatment,genetic_background) %>% 
+  pivot_wider(names_from = c(drug_treatment,genetic_background), values_from = mean_abundance) 
+
+```
+
 # save
 
 ```{r}
 
-save.image(file = "for_ggplot2_tutorial.RData")
+save(plot_these, new_plot_these, file = "for_ggplot2_tutorial.RData")
+#save.image(file = "for_ggplot2_tutorial.RData")
 
 ```
